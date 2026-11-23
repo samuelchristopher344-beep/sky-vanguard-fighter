@@ -1,1 +1,80 @@
-FULL_HTML_CONTENT_HERE
+<!DOCTYPE html>
+<html>
+<head>
+<title>Sky Vanguard - Realistic Dusk Fighter</title>
+<style>
+body{margin:0;overflow:hidden;background:#05080f;font-family:sans-serif}
+#info{position:absolute;top:10px;left:10px;color:#fff;font-size:14px;z-index:10}
+</style>
+</head>
+<body>
+<div id="info">WASD to fly, Shift for Afterburner (bright orange flame), C for view. Dusk takeoff style matching the video.</div>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2a40);
+scene.fog = new THREE.FogExp2(0x1a2a40, 0.00025);
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 20000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+document.body.appendChild(renderer.domElement);
+const sun = new THREE.DirectionalLight(0xffaa66, 0.8);
+sun.position.set(600, 150, 200);
+scene.add(sun);
+scene.add(new THREE.AmbientLight(0x2a3a58, 0.3));
+const runway = new THREE.Mesh(new THREE.BoxGeometry(2000, 1, 60), new THREE.MeshStandardMaterial({color:0x2a2a2e, roughness:0.8}));
+runway.position.y = 0;
+scene.add(runway);
+for(let i=-20;i<=20;i++){
+  const light = new THREE.PointLight(0xffaa44, 0.8, 30);
+  light.position.set(i*40, 2, 25);
+  scene.add(light);
+  const light2 = light.clone(); light2.position.z = -25; scene.add(light2);
+}
+const jet = new THREE.Group();
+const metal = new THREE.MeshStandardMaterial({color:0x8a9098, metalness:0.8, roughness:0.25});
+const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.7, 10, 16), metal);
+fuse.rotation.z = Math.PI/2;
+jet.add(fuse);
+const nose = new THREE.Mesh(new THREE.ConeGeometry(0.4, 2.5, 12), metal);
+nose.rotation.z = -Math.PI/2; nose.position.x = 6.5; jet.add(nose);
+const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8, 0, Math.PI*2, 0, Math.PI*0.5), new THREE.MeshPhysicalMaterial({color:0x081828, transparent:true, opacity:0.5}));
+canopy.position.set(2, 0.5, 0); canopy.scale.set(1.3, 0.9, 0.8); jet.add(canopy);
+const pilot = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshStandardMaterial({color:0x2a3038, metalness:0.5}));
+pilot.position.set(2, 0.4, 0); jet.add(pilot);
+const wing = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 8), metal);
+wing.position.set(-1, 0, 0); jet.add(wing);
+const tail = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 0.1), metal);
+tail.position.set(-4.5, 1.2, 0); jet.add(tail);
+const ab = new THREE.Mesh(new THREE.ConeGeometry(0.6, 6, 12), new THREE.MeshBasicMaterial({color:0xff4400}));
+ab.rotation.z = Math.PI/2; ab.position.x = -8; ab.visible = false; jet.add(ab);
+const abLight = new THREE.PointLight(0xff4400, 0, 25);
+abLight.position.set(-8, 0, 0); jet.add(abLight);
+scene.add(jet);
+jet.position.set(-400, 5, 0);
+const keys = {};
+addEventListener('keydown', e=>keys[e.code]=true);
+addEventListener('keyup', e=>keys[e.code]=false);
+let speed = 0, afterburner = false;
+function animate(){
+  requestAnimationFrame(animate);
+  afterburner = keys['ShiftLeft'] || keys['ShiftRight'];
+  if(keys['KeyW']) jet.rotateZ(-0.02);
+  if(keys['KeyS']) jet.rotateZ(0.02);
+  if(keys['KeyA']) jet.rotateY(0.02);
+  if(keys['KeyD']) jet.rotateY(-0.02);
+  speed = afterburner ? 0.8 : 0.3;
+  jet.translateX(speed);
+  ab.visible = afterburner;
+  abLight.intensity = afterburner ? 10 : 0;
+  camera.position.copy(jet.position).add(new THREE.Vector3(-20, 5, 10).applyQuaternion(jet.quaternion));
+  camera.lookAt(jet.position);
+  renderer.render(scene, camera);
+}
+animate();
+addEventListener('resize', ()=>{camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
