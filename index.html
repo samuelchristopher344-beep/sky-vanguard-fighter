@@ -1,80 +1,357 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Sky Vanguard - Realistic Dusk Fighter</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sky Vanguard — Realistic Fighter</title>
 <style>
-body{margin:0;overflow:hidden;background:#05080f;font-family:sans-serif}
-#info{position:absolute;top:10px;left:10px;color:#fff;font-size:14px;z-index:10}
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#1a2332;font-family:system-ui,sans-serif;color:#e8f0ff;touch-action:none}
+canvas{display:block}
+#hud{position:fixed;top:12px;left:12px;background:rgba(0,0,0,.55);padding:10px 14px;border-radius:8px;font-size:13px;pointer-events:none;z-index:10}
+#controls{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.5);padding:8px 16px;border-radius:8px;font-size:12px;pointer-events:none}
 </style>
 </head>
 <body>
-<div id="info">WASD to fly, Shift for Afterburner (bright orange flame), C for view. Dusk takeoff style matching the video.</div>
+<div id="hud">
+  ALT <span id="alt">0</span> m &nbsp; SPD <span id="spd">0</span> kts &nbsp; THR <span id="thr">0</span>% &nbsp; MSL <span id="msl">6</span><br>
+  <span id="status">Ready for takeoff — hold Shift for afterburner</span>
+</div>
+<div id="controls">WASD fly • Shift AB • Space missiles • B bombs • R flares • C camera</div>
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 import * as THREE from 'three';
+
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a2a40);
-scene.fog = new THREE.FogExp2(0x1a2a40, 0.00025);
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 20000);
+scene.background = new THREE.Color(0x8a9bb0);
+scene.fog = new THREE.Fog(0x8a9bb0, 400, 4500);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.5, 8000);
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
-const sun = new THREE.DirectionalLight(0xffaa66, 0.8);
-sun.position.set(600, 150, 200);
+
+// Lighting - overcast dusk
+const sun = new THREE.DirectionalLight(0xffe0c0, 0.9);
+sun.position.set(80, 40, 60);
+sun.castShadow = true;
 scene.add(sun);
-scene.add(new THREE.AmbientLight(0x2a3a58, 0.3));
-const runway = new THREE.Mesh(new THREE.BoxGeometry(2000, 1, 60), new THREE.MeshStandardMaterial({color:0x2a2a2e, roughness:0.8}));
-runway.position.y = 0;
+scene.add(new THREE.AmbientLight(0x607080, 0.55));
+scene.add(new THREE.HemisphereLight(0xa0b8d0, 0x4a5a3a, 0.45));
+
+// Ground + runway
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(6000, 6000),
+  new THREE.MeshStandardMaterial({color:0x3a5a2a, roughness:0.9})
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+const runway = new THREE.Mesh(
+  new THREE.BoxGeometry(1200, 1, 60),
+  new THREE.MeshStandardMaterial({color:0x2c2c30, roughness:0.8})
+);
+runway.position.set(0, 0.5, 0);
+runway.receiveShadow = true;
 scene.add(runway);
-for(let i=-20;i<=20;i++){
-  const light = new THREE.PointLight(0xffaa44, 0.8, 30);
-  light.position.set(i*40, 2, 25);
+
+// Runway markings + edge lights
+for(let i=-500;i<=500;i+=40){
+  const line = new THREE.Mesh(new THREE.BoxGeometry(8,0.2,2), new THREE.MeshBasicMaterial({color:0xffffff}));
+  line.position.set(i, 1.1, 0);
+  scene.add(line);
+  const light = new THREE.PointLight(0xffaa44, 0.4, 30);
+  light.position.set(i, 2, 28);
   scene.add(light);
-  const light2 = light.clone(); light2.position.z = -25; scene.add(light2);
+  const light2 = light.clone(); light2.position.z = -28; scene.add(light2);
 }
-const jet = new THREE.Group();
-const metal = new THREE.MeshStandardMaterial({color:0x8a9098, metalness:0.8, roughness:0.25});
-const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.7, 10, 16), metal);
-fuse.rotation.z = Math.PI/2;
-jet.add(fuse);
-const nose = new THREE.Mesh(new THREE.ConeGeometry(0.4, 2.5, 12), metal);
-nose.rotation.z = -Math.PI/2; nose.position.x = 6.5; jet.add(nose);
-const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8, 0, Math.PI*2, 0, Math.PI*0.5), new THREE.MeshPhysicalMaterial({color:0x081828, transparent:true, opacity:0.5}));
-canopy.position.set(2, 0.5, 0); canopy.scale.set(1.3, 0.9, 0.8); jet.add(canopy);
-const pilot = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshStandardMaterial({color:0x2a3038, metalness:0.5}));
-pilot.position.set(2, 0.4, 0); jet.add(pilot);
-const wing = new THREE.Mesh(new THREE.BoxGeometry(4, 0.1, 8), metal);
-wing.position.set(-1, 0, 0); jet.add(wing);
-const tail = new THREE.Mesh(new THREE.BoxGeometry(2, 2.5, 0.1), metal);
-tail.position.set(-4.5, 1.2, 0); jet.add(tail);
-const ab = new THREE.Mesh(new THREE.ConeGeometry(0.6, 6, 12), new THREE.MeshBasicMaterial({color:0xff4400}));
-ab.rotation.z = Math.PI/2; ab.position.x = -8; ab.visible = false; jet.add(ab);
-const abLight = new THREE.PointLight(0xff4400, 0, 25);
-abLight.position.set(-8, 0, 0); jet.add(abLight);
+
+// Trees
+const treeMat = new THREE.MeshStandardMaterial({color:0x2a4a28});
+for(let i=0;i<80;i++){
+  const t = new THREE.Mesh(new THREE.ConeGeometry(8+Math.random()*6, 28+Math.random()*15, 6), treeMat);
+  t.position.set((Math.random()-0.5)*1800, 12, (Math.random()-0.5)*800 + (Math.random()>0.5?200:-200));
+  t.castShadow = true;
+  scene.add(t);
+}
+
+// ========== JET (F-35 style gray stealth) ==========
+function createJet(){
+  const g = new THREE.Group();
+  const metal = new THREE.MeshStandardMaterial({color:0x8a9098, metalness:0.75, roughness:0.28});
+  const dark = new THREE.MeshStandardMaterial({color:0x5a6068, metalness:0.6, roughness:0.4});
+  const glass = new THREE.MeshPhysicalMaterial({color:0x102030, transparent:true, opacity:0.45, roughness:0.05, metalness:0.1});
+
+  // Fuselage
+  const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.75, 11, 14), metal);
+  fuse.rotation.z = Math.PI/2;
+  fuse.castShadow = true;
+  g.add(fuse);
+
+  // Nose
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.45, 2.6, 12), metal);
+  nose.rotation.z = -Math.PI/2;
+  nose.position.x = 6.8;
+  g.add(nose);
+
+  // Canopy
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 8, 0, Math.PI*2, 0, Math.PI*0.5), glass);
+  canopy.position.set(2.2, 0.55, 0);
+  canopy.scale.set(1.4, 0.9, 0.8);
+  g.add(canopy);
+
+  // Human pilot (head + helmet + shoulders)
+  const skin = new THREE.MeshStandardMaterial({color:0xc8a080, roughness:0.6});
+  const helmetMat = new THREE.MeshStandardMaterial({color:0x2a3038, roughness:0.4, metalness:0.5});
+  const suit = new THREE.MeshStandardMaterial({color:0x3a4a3a, roughness:0.7});
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), skin);
+  head.position.set(2.05, 0.42, 0);
+  g.add(head);
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8, 0, Math.PI*2, 0, Math.PI*0.65), helmetMat);
+  helmet.position.set(2.05, 0.46, 0);
+  g.add(helmet);
+  const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.18, 0.55), suit);
+  shoulders.position.set(1.85, 0.22, 0);
+  g.add(shoulders);
+
+  // Wings
+  const wingGeo = new THREE.BoxGeometry(3.2, 0.08, 6.5);
+  const wingL = new THREE.Mesh(wingGeo, metal);
+  wingL.position.set(-0.4, 0.05, 2.2);
+  wingL.rotation.y = 0.15;
+  wingL.castShadow = true;
+  g.add(wingL);
+  const wingR = wingL.clone(); wingR.position.z = -2.2; wingR.rotation.y = -0.15; g.add(wingR);
+
+  // Twin tails (F-35 style)
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 0.1), dark);
+  tail.position.set(-4.2, 1.3, 0.55);
+  tail.rotation.z = 0.12;
+  g.add(tail);
+  const tail2 = tail.clone(); tail2.position.z = -0.55; g.add(tail2);
+
+  // Horizontal stabs
+  const hstab = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.07, 2.8), dark);
+  hstab.position.set(-4.6, 0.3, 0);
+  g.add(hstab);
+
+  // Engine nozzle
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.5, 0.8, 12), new THREE.MeshStandardMaterial({color:0x222222, metalness:0.8}));
+  nozzle.rotation.z = Math.PI/2;
+  nozzle.position.x = -5.6;
+  g.add(nozzle);
+
+  // Afterburner flame (bright orange)
+  const abMat = new THREE.MeshBasicMaterial({color:0xff5500, transparent:true, opacity:0.9});
+  const ab = new THREE.Mesh(new THREE.ConeGeometry(0.48, 3.8, 10), abMat);
+  ab.rotation.z = Math.PI/2;
+  ab.position.x = -7.4;
+  ab.visible = false;
+  g.add(ab);
+  g.userData.ab = ab;
+
+  const abLight = new THREE.PointLight(0xff4400, 0, 22);
+  abLight.position.set(-6.8, 0, 0);
+  g.add(abLight);
+  g.userData.abLight = abLight;
+
+  // Landing gear
+  const gearMat = new THREE.MeshStandardMaterial({color:0x333333});
+  const gear = new THREE.Group();
+  [-1.5, 1.2, -1.2].forEach((z,i) => {
+    const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2), gearMat);
+    strut.position.set(i===0 ? 3.5 : -3.8, -0.7, z);
+    gear.add(strut);
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.12, 8), gearMat);
+    wheel.rotation.z = Math.PI/2;
+    wheel.position.set(strut.position.x, -1.25, z);
+    gear.add(wheel);
+  });
+  g.add(gear);
+  g.userData.gear = gear;
+
+  return g;
+}
+
+const jet = createJet();
+jet.position.set(-400, 2.2, 0);
 scene.add(jet);
-jet.position.set(-400, 5, 0);
+
+// Physics state
+let vel = new THREE.Vector3();
+let onGround = true;
+let throttle = 0;
+let afterburner = false;
+let missiles = 6;
+let bombs = 4;
+const projectiles = [];
+const particles = [];
+
 const keys = {};
-addEventListener('keydown', e=>keys[e.code]=true);
-addEventListener('keyup', e=>keys[e.code]=false);
-let speed = 0, afterburner = false;
-function animate(){
+addEventListener('keydown', e => { keys[e.code] = true; if(e.code==='Space') e.preventDefault(); });
+addEventListener('keyup', e => keys[e.code] = false);
+
+function spawnExplosion(pos, size=1){
+  for(let i=0;i<18;i++){
+    const p = new THREE.Mesh(
+      new THREE.SphereGeometry(0.4+Math.random()*0.8, 5, 5),
+      new THREE.MeshBasicMaterial({color: Math.random()>0.4 ? 0xff6622 : 0xaaaaaa, transparent:true, opacity:0.8})
+    );
+    p.position.copy(pos);
+    p.userData = {vel: new THREE.Vector3((Math.random()-0.5)*12, Math.random()*8+2, (Math.random()-0.5)*12), life: 1.2+Math.random()*0.8};
+    scene.add(p);
+    particles.push(p);
+  }
+  // Smoke cloud
+  const smoke = new THREE.Mesh(new THREE.SphereGeometry(4*size, 8, 6), new THREE.MeshBasicMaterial({color:0x555555, transparent:true, opacity:0.6}));
+  smoke.position.copy(pos);
+  smoke.userData = {life: 3, grow: true};
+  scene.add(smoke);
+  particles.push(smoke);
+}
+
+function fireMissile(){
+  if(missiles <= 0) return;
+  missiles--;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6), new THREE.MeshStandardMaterial({color:0xcccccc}));
+  m.rotation.z = Math.PI/2;
+  m.position.copy(jet.position).add(new THREE.Vector3(4, -0.3, 1.5).applyQuaternion(jet.quaternion));
+  m.quaternion.copy(jet.quaternion);
+  m.userData = {vel: new THREE.Vector3(0,0,0).applyQuaternion(jet.quaternion).multiplyScalar(80), life: 8};
+  scene.add(m);
+  projectiles.push(m);
+}
+
+function dropBomb(){
+  if(bombs <= 0) return;
+  bombs--;
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.35, 8, 6), new THREE.MeshStandardMaterial({color:0x444444}));
+  b.position.copy(jet.position).add(new THREE.Vector3(-1, -1.2, 0).applyQuaternion(jet.quaternion));
+  b.userData = {vel: vel.clone(), life: 12, bomb: true};
+  scene.add(b);
+  projectiles.push(b);
+}
+
+function fireFlares(){
+  for(let i=0;i<6;i++){
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 6), new THREE.MeshBasicMaterial({color:0xffee88}));
+    f.position.copy(jet.position).add(new THREE.Vector3(-2, 0, (i-2.5)*0.4).applyQuaternion(jet.quaternion));
+    f.userData = {vel: new THREE.Vector3((Math.random()-0.5)*8, -4-Math.random()*6, (Math.random()-0.5)*8), life: 1.8};
+    scene.add(f);
+    particles.push(f);
+  }
+}
+
+let last = performance.now();
+function animate(now){
   requestAnimationFrame(animate);
+  const dt = Math.min((now-last)/1000, 0.05);
+  last = now;
+
+  // Controls
   afterburner = keys['ShiftLeft'] || keys['ShiftRight'];
-  if(keys['KeyW']) jet.rotateZ(-0.02);
-  if(keys['KeyS']) jet.rotateZ(0.02);
-  if(keys['KeyA']) jet.rotateY(0.02);
-  if(keys['KeyD']) jet.rotateY(-0.02);
-  speed = afterburner ? 0.8 : 0.3;
-  jet.translateX(speed);
-  ab.visible = afterburner;
-  abLight.intensity = afterburner ? 10 : 0;
-  camera.position.copy(jet.position).add(new THREE.Vector3(-20, 5, 10).applyQuaternion(jet.quaternion));
+  if(keys['KeyW']) jet.rotateX(-1.2*dt);
+  if(keys['KeyS']) jet.rotateX(1.2*dt);
+  if(keys['KeyA']) jet.rotateZ(1.4*dt);
+  if(keys['KeyD']) jet.rotateZ(-1.4*dt);
+  if(keys['KeyQ']) jet.rotateY(0.8*dt);
+  if(keys['KeyE']) jet.rotateY(-0.8*dt);
+  if(keys['Space'] && !keys._fired){ fireMissile(); keys._fired = true; }
+  if(!keys['Space']) keys._fired = false;
+  if(keys['KeyB'] && !keys._bomb){ dropBomb(); keys._bomb = true; }
+  if(!keys['KeyB']) keys._bomb = false;
+  if(keys['KeyR'] && !keys._flare){ fireFlares(); keys._flare = true; }
+  if(!keys['KeyR']) keys._flare = false;
+
+  // Throttle
+  const target = afterburner ? 1 : (keys['KeyX'] ? 0.15 : 0.65);
+  throttle += (target - throttle) * 3 * dt;
+
+  // Thrust
+  const thrust = (afterburner ? 28 : 16) * throttle;
+  const forward = new THREE.Vector3(1,0,0).applyQuaternion(jet.quaternion);
+  vel.add(forward.multiplyScalar(thrust * dt));
+  vel.y -= 6.5 * dt; // gravity
+  // Drag
+  vel.multiplyScalar(0.992);
+
+  jet.position.add(vel.clone().multiplyScalar(dt * 8));
+
+  // Ground collision / takeoff
+  const groundY = 2.2;
+  if(jet.position.y <= groundY){
+    jet.position.y = groundY;
+    if(vel.y < 0) vel.y = 0;
+    onGround = true;
+    if(vel.length() > 12 && afterburner){ // lift off
+      vel.y = 4;
+      onGround = false;
+    }
+    jet.userData.gear.visible = true;
+  } else {
+    onGround = false;
+    if(vel.length() > 15) jet.userData.gear.visible = false;
+  }
+
+  // AB visual
+  const abOn = afterburner && throttle > 0.7;
+  jet.userData.ab.visible = abOn;
+  jet.userData.abLight.intensity = abOn ? 6.5 : 0;
+
+  // Projectiles
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    if(p.userData.bomb){
+      p.userData.vel.y -= 9 * dt;
+    }
+    p.position.add(p.userData.vel.clone().multiplyScalar(dt));
+    p.userData.life -= dt;
+    if(p.position.y <= 1 || p.userData.life <= 0){
+      spawnExplosion(p.position.clone(), p.userData.bomb ? 1.6 : 1);
+      scene.remove(p);
+      projectiles.splice(i,1);
+    }
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    if(p.userData.vel) p.position.add(p.userData.vel.clone().multiplyScalar(dt));
+    if(p.userData.grow) p.scale.multiplyScalar(1 + dt*0.8);
+    p.userData.life -= dt;
+    if(p.material.opacity) p.material.opacity = Math.max(0, p.userData.life / 2);
+    if(p.userData.life <= 0){
+      scene.remove(p);
+      particles.splice(i,1);
+    }
+  }
+
+  // Camera
+  const camOffset = new THREE.Vector3(-18, 6, 0).applyQuaternion(jet.quaternion);
+  camera.position.lerp(jet.position.clone().add(camOffset), 0.08);
   camera.lookAt(jet.position);
+
+  // HUD
+  document.getElementById('alt').textContent = Math.max(0, Math.round(jet.position.y * 3));
+  document.getElementById('spd').textContent = Math.round(vel.length() * 12);
+  document.getElementById('thr').textContent = Math.round(throttle * 100);
+  document.getElementById('msl').textContent = missiles;
+  document.getElementById('status').textContent = onGround 
+    ? (vel.length() > 8 ? 'Rolling — hold Shift to lift off' : 'On runway — accelerate with Shift')
+    : (afterburner ? 'AFTERBURNER ON' : 'Airborne');
+
   renderer.render(scene, camera);
 }
-animate();
-addEventListener('resize', ()=>{camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight);});
+animate(performance.now());
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
 </script>
 </body>
 </html>
